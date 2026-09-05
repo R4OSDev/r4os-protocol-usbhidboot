@@ -6,10 +6,13 @@ Projektstruktur seit 0.51.22
 
 Dieses Verzeichnis ist ein eigenstaendiges R4OS-SDK-Projekt fuer USBHID.R4P.
 
-Build:
+Build aus dem Projektverzeichnis unter Windows:
 
-    cd Code\System\Protocols\UsbHidBoot
-    ..\..\..\DevTools\Zig\zig.exe build
+    Build.bat
+
+Build aus dem Projektverzeichnis unter Linux:
+
+    ./Build.sh
 
 Artefakt:
 
