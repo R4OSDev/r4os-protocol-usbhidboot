@@ -14,9 +14,9 @@ Build aus dem Projektverzeichnis unter Linux:
 
     ./Build.sh
 
-Artefakt:
+Artefakt relativ zum Workspace-Root:
 
-    zig-out\USBHID.R4P
+    Artifacts/Modules/UsbHidBoot/USBHID.R4P
 
 Manifest:
 
