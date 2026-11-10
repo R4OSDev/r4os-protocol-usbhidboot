@@ -1,15 +1,15 @@
 const r4os = @import("r4os");
 
 comptime {
-    asm (r4os.r4dev.protocolEntriesAsm("usbhid_init", "usbhid_shutdown", "usbhid_query", "usbhid_dispatch"));
+    if (!@import("builtin").is_test) asm (r4os.technical2.protocolEntriesAsm("usbhid_init", "usbhid_shutdown", "usbhid_query", "usbhid_dispatch"));
 }
 
-export fn usbhid_init(api: *const r4os.r4dev.ProtocolApi) callconv(.c) i32 {
-    var ctx = r4os.r4dev.ProtocolContext.init(api);
-    ctx.logInfo("USBHID.R4P init");
-    _ = ctx.registerRole("usb.hid_boot", .usb, 0);
-    _ = ctx.setStatus(.active, "USB HID boot R4P active");
-    return 0;
+export fn usbhid_init(api: *const r4os.r4dev.ProtocolApi2) callconv(.c) i32 {
+    const ctx = r4os.r4dev.ProtocolContext2.init(api);
+    if (!ctx.requires(.{ "register_role", "set_status" })) return r4os.abi.err_no_fn;
+    const registered = ctx.registerRole("usb.hid_boot", .usb, 0);
+    if (registered != 0) return registered;
+    return ctx.setStatus(.active, "USB HID boot R4P active");
 }
 
 export fn usbhid_shutdown() callconv(.c) i32 {
@@ -122,10 +122,11 @@ fn decodeMouse(op: *r4os.abi.UsbHidBootOp) void {
         op.result = r4os.abi.usb_hid_boot_result_short;
         return;
     }
-    op.mouse_buttons = report[0] & 0x07;
-    op.mouse_dx = signed8(report[1]);
-    op.mouse_dy = signed8(report[2]);
-    op.mouse_wheel = if (report.len > 3) signed8(report[3]) else 0;
+    var reader = r4os.binary_cursor.Reader.init(report) catch unreachable;
+    op.mouse_buttons = (reader.readInt(u8, .little) catch unreachable) & 0x07;
+    op.mouse_dx = signed8(reader.readInt(u8, .little) catch unreachable);
+    op.mouse_dy = signed8(reader.readInt(u8, .little) catch unreachable);
+    op.mouse_wheel = if (report.len > 3) signed8(reader.readInt(u8, .little) catch unreachable) else 0;
     op.result = r4os.abi.usb_hid_boot_result_ok;
 }
 
@@ -218,9 +219,11 @@ fn clippedU8(value: usize) u8 {
 }
 
 fn requestFromBuffer(buffer: *const r4os.abi.ProtocolBuffer) ?*r4os.abi.UsbHidBootOp {
-    if (buffer.data == null) return null;
-    if (buffer.len < @sizeOf(r4os.abi.UsbHidBootOp)) return null;
-    return @ptrCast(@alignCast(buffer.data.?));
+    const native = r4os.native_protocol_view;
+    // These original caller-owned operation records are not wire headers.
+    // Dispatch borrows them exclusively and never owns a USB transfer.
+    var metadata = buffer.*;
+    return (native.InOut(r4os.abi.UsbHidBootOp).init(&metadata, native.Policy.record(r4os.abi.UsbHidBootOp, .inout, .prefix)) catch return null).value;
 }
 
 fn note(comptime text: []const u8) [64]u8 {
